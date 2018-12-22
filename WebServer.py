@@ -9,6 +9,7 @@ def print_to_console(text, char='-'):
 
 
 class WebServer:
+    BUFFER_SIZE = 4096
     address_family = socket.AF_INET
     socket_type = socket.SOCK_STREAM
 
@@ -29,21 +30,26 @@ class WebServer:
 
     def serve_forever(self):
         while True:
-            connection, address = self._sock.accept()
-            self._handle_request(connection)
+            try:
+                connection, address = self._sock.accept()
+                print_to_console('Accepted connection: {0}'.format(str(address)))
+                with connection:
+                    self._handle_request(connection)
+            except Exception as e:
+                print_to_console('An error occurred:\n{0}'.format(str(e)))
 
     def _handle_request(self, connection):
-        request = connection.recv(1024).decode()
+        request = connection.recv(self.BUFFER_SIZE).decode()
+        if not request:
+            print_to_console('Received empty request. Skipping ...')
+            return
         print_to_console(request, '>')
         method, path, version = self._parse_request(request)
         env = self._get_environ(request, method, path)
         body = self._app_handler(env, self.start_response)
         response = self._build_response(body)
         print_to_console(response, '<')
-        try:
-            connection.sendall(response.encode())
-        finally:
-            connection.close()
+        connection.sendall(response.encode())
 
     def _get_environ(self, request, method, path):
         env = {
